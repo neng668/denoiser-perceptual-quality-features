@@ -1,6 +1,25 @@
-# Real Time Speech Enhancement in the Waveform Domain (Interspeech 2020)
+# Using Perceptual Quality Features in the Design of the Loss Function for Speech Enhancement (APSIPA 2021)
 
-![tests badge](https://github.com/facebookresearch/denoiser/workflows/tests/badge.svg)
+This repository adds cepstral standard deviation, cepstral kurtosis and MFCC standard deviation to the loss function of Denoiser.
+This accompanies the paper [Using Perceptual Quality Features in the Design of the Loss Function for Speech Enhancement][apsipa].
+
+## Training
+These can be trained using the launch_valentini_std.sh, launch_valentini_std_krt.sh, launch_valentini_mfcc_5.sh or launch_valentini_mfcc_20.sh files.
+
+## Citation
+If you use the code in your paper, then please cite it as:
+```
+@inproceedings{eng2022using,
+  title={Using perceptual quality features in the design of the loss function for speech enhancement},
+  author={Eng, Nicholas and Hioka, Yusuke and Watson, Catherine I},
+  booktitle={2022 Asia-Pacific Signal and Information Processing Association Annual Summit and Conference (APSIPA ASC)},
+  pages={1904--1909},
+  year={2022},
+  organization={IEEE}
+}
+```
+
+Based on Real Time Speech Enhancement in the Waveform Domain (Defossez et al.), of which the original readme is below.
 
 We provide a [PyTorch][pytorch] implementation of the paper: [Real Time Speech Enhancement in the Waveform Domain][arxiv].
 In which, we present a causal speech enhancement model working on the raw waveform that runs in real-time on a laptop CPU.
@@ -391,6 +410,7 @@ This repository is released under the CC-BY-NC 4.0. license as found in the [LIC
 The file `denoiser/stft_loss.py` was adapted from the [kan-bayashi/ParallelWaveGAN][wavegan] repository. It is an unofficial implementation of the [ParallelWaveGAN][wavegan-paper] paper, released under the MIT License.
 The file `scripts/matlab_eval.py` was adapted from the [santi-pdp/segan_pytorch][segan] repository. It is an unofficial implementation of the [SEGAN][segan-paper] paper, released under the MIT License.
 
+[apsipa]: http://apsipa.org/proceedings/2022/APSIPA%202022/ThPM2-2/1570834318.pdf
 [arxiv]: https://arxiv.org/abs/2006.12847
 [web]: https://facebookresearch.github.io/denoiser/
 [pytorch]: https://pytorch.org/

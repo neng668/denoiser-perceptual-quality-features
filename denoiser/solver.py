@@ -66,7 +66,10 @@ class Solver(object):
         self.num_prints = args.num_prints  # Number of times to log per epoch
         self.args = args
         self.mrstftloss = MultiResolutionSTFTLoss(factor_sc=args.stft_sc_factor,
-                                                  factor_mag=args.stft_mag_factor).to(self.device)
+                                                  factor_mag=args.stft_mag_factor,
+                                                  factor_std=args.std_factor,
+                                                  factor_krt=args.krt_factor,
+                                                  factor_krt=args.mfcc_factor).to(self.device)
         self._reset()
 
     def _serialize(self):
@@ -222,14 +225,8 @@ class Solver(object):
                     raise ValueError(f"Invalid loss {self.args.loss}")
                 # MultiResolution STFT loss
                 if self.args.stft_loss:
-                    #sc_loss, mag_loss, dip_loss, excess_loss = self.mrstftloss(estimate.squeeze(1), clean.squeeze(1))
                     sc_loss, mag_loss, mag_s_loss, mfcc_std, mfcc_loss, std_loss, skw_loss, krt_loss, lpc_skw = self.mrstftloss(estimate.squeeze(1), clean.squeeze(1))
-                    #sc_loss, mag_loss, mag_s_loss, std_loss, skw_loss, krt_loss = self.mrstftloss(
-                    #sc_loss, mag_loss, mag_s_loss, std_loss, skw_loss, krt_loss = self.mrstftloss(
-                        #estimate.squeeze(1), clean.squeeze(1))
-                    #loss += dip_loss + excess_loss
-                    #loss += std_loss
-                    #print(dip_loss, ' ', excess_loss, ' ', L1_loss, flush=True)
+                    loss += std_loss + krt_loss + mfcc_std
 
                 # optimize model in training mode
                 if not cross_valid:

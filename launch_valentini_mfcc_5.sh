@@ -17,6 +17,9 @@ python train.py \
   shift_same=True \
   stft_loss=True \
   stft_sc_factor=0.1 stft_mag_factor=0.1 \
+  std_factor=0 \
+  krt_factor=0 \
+  mfcc_factor=0.007 \
   segment=4.5 \
   stride=0.5 \
   ddp=1 $@

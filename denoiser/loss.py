@@ -132,34 +132,26 @@ def unwrap(p, discont=torch.tensor(math.pi), axis=-1):
     unwrapped: Unwrapped tensor of same size as input.
     """
     dd = diff(p, axis=axis)
-    #     print("dd",dd)
     ddmod = torch.fmod(dd + torch.tensor(math.pi), 2.0 * torch.tensor(math.pi).cuda()) - torch.tensor(math.pi).cuda()  # ddmod = tf.mod(dd + np.pi, 2.0 * np.pi) - np.pi
-    #     print("ddmod",ddmod)
 
     idx = torch.logical_and(torch.eq(ddmod, -torch.tensor(math.pi).cuda()),
                          torch.gt(dd, 0))  # idx = tf.logical_and(tf.equal(ddmod, -np.pi), tf.greater(dd, 0))
-    #     print("idx",idx)
     ddmod = torch.where(idx, torch.ones_like(ddmod) * torch.tensor(math.pi),
                      ddmod)  # ddmod = tf.where(idx, tf.ones_like(ddmod) * np.pi, ddmod)
-    #     print("ddmod",ddmod)
     ph_correct = ddmod - dd
-    #     print("ph_corrct",ph_correct)
 
     idx = torch.lt(torch.abs(dd), discont)  # idx = tf.less(tf.abs(dd), discont)
 
     ddmod = torch.where(idx, torch.zeros_like(ddmod), dd)  # ddmod = tf.where(idx, tf.zeros_like(ddmod), dd)
     ph_cumsum = torch.cumsum(ph_correct, axis=axis)  # ph_cumsum = tf.cumsum(ph_correct, axis=axis)
-    #     print("idx",idx)
-    #     print("ddmod",ddmod)
-    #     print("ph_cumsum",ph_cumsum)
 
     shape = torch.tensor(p.shape)  # shape = p.get_shape().as_list()
 
     shape[axis] = 1
     ph_cumsum = torch.cat([torch.zeros(shape.tolist(), dtype=p.dtype).cuda(), ph_cumsum], axis=axis)
-    # ph_cumsum = tf.concat([tf.zeros(shape, dtype=p.dtype), ph_cumsum], axis=axis)
+
     unwrapped = p + ph_cumsum
-    #     print("unwrapped",unwrapped)
+
     return unwrapped
 
 
@@ -186,7 +178,6 @@ def cepstrumStatistics(x, y, batch_size):
     x: tensor containing enhanced signals
     windowLength: default 80
     overlapSize: default 0.5
-    TODO add kurtosis
     """
     n_start = 1
     x_std = torch.ones(batch_size, x.size(0)).cuda()
@@ -206,7 +197,6 @@ def cepstrumStatistics(x, y, batch_size):
         cepSkw[k, :] = skew(cep_diff, 1)
         cepKrt[k, :] = kurtosis(cep_diff, 1)
 
-    #return y_std, x_std, y_skw, x_skw, x_krt, y_krt
     return torch.mean(cepStd), torch.mean(cepSkw), torch.mean(cepKrt)
 
 
@@ -260,23 +250,11 @@ def calcEnergyDips(x, y, y_full, batch_size, windowLength, windowType, U, Fs):
     MAX_SNR = 60
 
     # Set up VAD - 1920 for 16000 hz
-    #first_120ms = y_full[:, 0:1920]
-    #nsubframes = torch.floor(torch.tensor(1920) / (windowLength / 2)) - 1
     p = torch.zeros(y.size(0), 1)
     energyDips = torch.zeros(batch_size)
     energyExcess = torch.zeros(batch_size)
 
     for b in range(batch_size):
-        #n_start_vad = 0
-        #noise_ps = torch.zeros(windowLength, 1).cuda()
-        #for j in range(int(nsubframes.item())):
-        #    noise = first_120ms[b, n_start_vad: n_start_vad + windowLength]
-        #    noise = noise * windowType
-        #    noise_fft = torch.fft.fft(noise, windowLength)
-        #    noise_ps = torch.squeeze(noise_ps) + abs(noise_fft ** 2/(windowLength*U))
-        #    n_start_vad = n_start_vad + int(windowLength/2)
-        #noise_ps = noise_ps/nsubframes.item()
-
         clean_speech = y[:, b, :]
         clean_speech = clean_speech*windowType
         clean_fft = torch.fft.fft(clean_speech, windowLength)
@@ -285,6 +263,7 @@ def calcEnergyDips(x, y, y_full, batch_size, windowLength, windowType, U, Fs):
         enhanced_speech = enhanced_speech*windowType
         enhanced_fft = torch.fft.fft(enhanced_speech, windowLength)
         enhanced_psd = (abs(enhanced_fft ** 2)/(windowLength * U))
+
         # simple VAD implementation
         p = torch.mean(clean_psd, 1)
 
@@ -299,10 +278,6 @@ def calcEnergyDips(x, y, y_full, batch_size, windowLength, windowType, U, Fs):
         firstVAD = torch.min((torch.where(torch.squeeze(p) > 0.0002))[0]).item()
         lastVAD = torch.max((torch.where(torch.squeeze(p) > 0.0002))[0]).item()
 
-        #Median filter - TODO
-        #energyDipAll = threshold - enhanced_energy_pb
-        #energyExcessAll = enhanced_energy_pb - clean_energy_pb
-
         dipsArray = torch.where(enhanced_energy_pb[firstVAD:lastVAD] < threshold[firstVAD:lastVAD])[0] + firstVAD
         excessArray = torch.where(enhanced_energy_pb[firstVAD:lastVAD] > clean_energy_pb[firstVAD:lastVAD])[0] + firstVAD
         for k in range(dipsArray.size()[0]):
@@ -310,28 +285,6 @@ def calcEnergyDips(x, y, y_full, batch_size, windowLength, windowType, U, Fs):
 
         for l in range(excessArray.size()[0]):
             energyExcess[b] = energyExcess[b] + enhanced_energy_pb[excessArray[l]] - clean_energy_pb[excessArray[l]]
-
-        test = 1
-        #VAD calculations
-        #for k in range(y.size(0)):
-        #    if k == 0:
-        #        posteri = clean_psd[k, :]/noise_ps
-        #        posteri_prime = torch.clamp(posteri - 1, min=0)
-        #        priori = 0.98 + (1 - 0.98) * posteri_prime
-        #    else:
-        #        posteri = clean_psd[k, :] / noise_ps
-        #        posteri_prime = torch.clamp(posteri - 1, min=0)
-        #        priori = 0.98*(G ** 2) * posteri_prev + (1 - 0.98) * posteri_prime
-        #    log_sigma_k = (posteri*priori)/(1 + priori) - torch.log10(1 + priori);
-        #    p[k] = torch.clamp(torch.sum(log_sigma_k)/windowLength, max=1)
-        #    G = (priori/(1 + priori))**0.5
-        #    posteri_prev = posteri
-
-
-
-
-        #energyDips = 1;
-        #energyExcess = 1;
 
     return energyDips, energyExcess
 
@@ -389,7 +342,7 @@ class MFCCLoss(torch.nn.Module):
         x_mfcc = self.mfcc_transform(x)
         y_mfcc = self.mfcc_transform(y)
         MFCC_diff = x_mfcc - y_mfcc
-        #return torch.mean(torch.abs(torch.std(y_mfcc, 2) - torch.std(x_mfcc, 2))), torch.mean(torch.abs(MFCC_diff))
+        
         return torch.mean(torch.std(MFCC_diff, 2)), torch.mean(torch.abs(MFCC_diff))
 
 
@@ -502,6 +455,9 @@ class MultiResolutionSTFTLoss(torch.nn.Module):
             self.stft_losses += [STFTLoss(fs, ss, wl, window)]
         self.factor_sc = factor_sc
         self.factor_mag = factor_mag
+        self.factor_std = factor_std
+        self.factor_krt = factor_krt
+        self.factor_mfcc = factor_mfcc
         self.MFCC_losses = MFCCLoss(16000, 20, 480, 20, 240)
 
     def forward(self, x, y):
@@ -513,105 +469,44 @@ class MultiResolutionSTFTLoss(torch.nn.Module):
             Tensor: Multi resolution spectral convergence loss value.
             Tensor: Multi resolution log STFT magnitude loss value.
         """
-        sc_loss = 0.0
-        mag_loss = 0.0
-        mag_s_loss = 0.0
+
         mfcc_std = 0.0
         mfcc_avg = 0.0
         skw_loss = 0.0
         std_loss = 0.0
         krt_loss = 0.0
-        dip_loss = 0.0
-        excess_loss = 0.0
 
-        # calculate phase of fft for x and y tensors - 160 for cep
-        cep_window = 160
-        cep_overlap = 0.50
+        sc_loss = 0.0
+        mag_loss = 0.0
+        if self.factor_sc > 0.0 or self.factor_mag > 0.0
+            for f in self.stft_losses:
+                sc_l, mag_l = f(x, y)
+                sc_loss += sc_l
+                mag_loss += mag_l
+            sc_loss /= len(self.stft_losses)
+            mag_loss /= len(self.stft_losses)
 
-        #below is very slow, try to reshape tensor to contain all the parts
-        #n_start = 0
-        #len1 = cep_window * (1 - cep_overlap)
-        #nframes = math.floor(y.size(dim=1) / len1) - 1
-        #x_windowed = torch.ones(nframes - 1, y.size(0), cep_window).cuda()
-        #y_windowed = torch.ones(nframes - 1, y.size(0), cep_window).cuda()
-        #for k in range(nframes - 1):
-        #    x_windowed[k, 0:y.size(0), 0:0 + cep_window] = x[:, n_start:n_start+cep_window]
-        #    y_windowed[k, 0:y.size(0), 0:0 + cep_window] = y[:, n_start:n_start + cep_window]
-        #    n_start = int(n_start + cep_window*(1-cep_overlap))
+        if self.factor_std > 0.0 or self.factor_krt > 0.0
+            [std_loss, skw_loss, krt_loss] = cepstrumStatistics(x_windowed, y_windowed, y.size(0))
 
-        #hammingWin = torch.hamming_window(cep_window).cuda()
-        #U = sum(hammingWin**2)/cep_window
+        if self.factor_mfcc > 0.0
+            for b in range(y.size(0)):
+            clean_speech = y_windowed[:, b, :]
+            clean_speech = clean_speech*hammingWin
+            clean_fft = torch.fft.fft(clean_speech, cep_window)
+            clean_psd = (abs(clean_fft ** 2)/(cep_window * U))
+            p = torch.mean(clean_psd, 1)
+            firstVAD = torch.min((torch.where(torch.squeeze(p) > 0.0002))[0]).item()
+            lastVAD = torch.max((torch.where(torch.squeeze(p) > 0.0002))[0]).item()
 
-        #sr = 16000
-        #frame_duration = 0.01
-        #frame_overlap = 0.5
-        #K = 8
-        #lpc_prep = L.LPCCoefficients(sr, frame_duration, frame_overlap, order=(K - 1))
-        #lpc_std, lpc_skw, lpc_krt = LPCStatistics(x, y, lpc_prep)
+            #convert framenumber to index
+            firstVADIndex = int((cep_window/2)*firstVAD)
+            lastVADIndex = int((cep_window/2)*lastVAD)
+            mfcc_std_one, mfcc_avg_one = self.MFCC_losses(torch.unsqueeze(x[b, firstVADIndex:lastVADIndex],0), torch.unsqueeze(y[b, firstVADIndex:lastVADIndex],0))
+            mfcc_std += mfcc_std_one
+            mfcc_avg += mfcc_avg_one
+            mfcc_std /= y.size(0)
+            mfcc_avg /= y.size(0)
+     
 
-        #for b in range(y.size(0)):
-        #    clean_speech = y_windowed[:, b, :]
-        #    clean_speech = clean_speech*hammingWin
-        #    clean_fft = torch.fft.fft(clean_speech, cep_window)
-        #    clean_psd = (abs(clean_fft ** 2)/(cep_window * U))
-        #    p = torch.mean(clean_psd, 1)
-        #    firstVAD = torch.min((torch.where(torch.squeeze(p) > 0.0002))[0]).item()
-        #    lastVAD = torch.max((torch.where(torch.squeeze(p) > 0.0002))[0]).item()
-        #    complex_cepstrum(torch.unsqueeze(y_windowed[0, b, :], 0))
-        #    [std_l, skw_l, krt_l] = cepstrumStatisticsSingle(x_windowed[firstVAD:lastVAD, b, :], y_windowed[firstVAD:lastVAD, b, :])
-        #    std_loss += std_l
-        #    skw_loss += skw_l
-        #    krt_loss += krt_l
-
-        #std_loss /= y.size(0)
-        #skw_loss /= y.size(0)
-        #krt_loss /= y.size(0)
-
-        #[energyDips, energyExcess] = calcEnergyDips(x_windowed, y_windowed, y, y.size(0), cep_window, hammingWin, U, 16000)
-        #energyDips = torch.log10(torch.mean(energyDips) + 1)
-        #energyExcess = torch.log10(torch.mean(energyExcess) + 1)
-        #[y_std, x_std, y_skw, x_skw, x_krt, y_krt] = cepstrumStatistics(x_windowed, y_windowed, y.size(0))
-        #[std_loss, skw_loss, krt_loss] = cepstrumStatistics(x_windowed, y_windowed, y.size(0))
-        #std_loss = F.l1_loss(y_std, x_std)
-        #skw_loss = F.l1_loss(y_skw, x_skw)
-        #krt_loss = F.l1_loss(y_krt, x_krt)
-        std_loss = 1
-        skw_loss = 1
-        krt_loss = 1
-
-        #for b in range(y.size(0)):
-        #    clean_speech = y_windowed[:, b, :]
-        #    clean_speech = clean_speech*hammingWin
-        #    clean_fft = torch.fft.fft(clean_speech, cep_window)
-        #    clean_psd = (abs(clean_fft ** 2)/(cep_window * U))
-        #    p = torch.mean(clean_psd, 1)
-        #    firstVAD = torch.min((torch.where(torch.squeeze(p) > 0.0002))[0]).item()
-        #    lastVAD = torch.max((torch.where(torch.squeeze(p) > 0.0002))[0]).item()
-        #    #convert framenumber to index
-        #    firstVADIndex = int((cep_window/2)*firstVAD)
-        #    lastVADIndex = int((cep_window/2)*lastVAD)
-        #    mfcc_std_one, mfcc_avg_one = self.MFCC_losses(torch.unsqueeze(x[b, firstVADIndex:lastVADIndex],0), torch.unsqueeze(y[b, firstVADIndex:lastVADIndex],0))
-        #    mfcc_std += mfcc_std_one
-        #    mfcc_avg += mfcc_avg_one
-        #mfcc_std /= y.size(0)
-        #mfcc_avg /= y.size(0)
-
-        #mfcc_std, mfcc_avg = self.MFCC_losses(x, y)
-
-        #for f in self.stft_losses:
-        #    sc_l, mag_l, mag_s = f(x, y)
-        #    sc_loss += sc_l
-        #    mag_loss += mag_l
-        #    mag_s_loss += mag_s
-        #sc_loss /= len(self.stft_losses)
-        #mag_loss /= len(self.stft_losses)
-        #mag_s_loss /= len(self.stft_losses)
-        sc_loss = 1
-        mag_loss = 1
-        mag_s_loss = 1
-        lpc_std = 1
-
-        #return self.factor_sc * sc_loss, self.factor_mag * mag_loss, energyDips/100, energyExcess/100
-        return self.factor_sc*sc_loss, self.factor_mag*mag_loss, self.factor_mag*mag_s_loss, self.factor_mag*mfcc_std, self.factor_mag*mfcc_avg, std_loss*0.01, skw_loss*self.factor_mag, krt_loss*self.factor_mag, lpc_std*0.1
-        #return self.factor_sc * sc_loss, self.factor_mag * mag_loss, self.factor_mag * mag_s_loss, std_loss * 0.025, skw_loss * 0.0025, krt_loss * 0.000125
-
+        return std_loss * self.factor_std, krt_loss * self.factor_krt, mfcc_std * self.factor_mfcc
